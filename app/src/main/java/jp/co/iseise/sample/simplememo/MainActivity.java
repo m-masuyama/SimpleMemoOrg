@@ -1,16 +1,16 @@
 package jp.co.iseise.sample.simplememo;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
+import android.view.ContextMenu;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 
@@ -25,12 +25,21 @@ public class MainActivity extends ActionBarActivity implements AdapterView.OnIte
 		setContentView(R.layout.activity_main);
 
 		// レイアウトからListViewを取得
-		listView =(ListView) findViewById(R.id.listMemo);
-		// 行クリックのイベントリスナー登録
+		listView = (ListView) findViewById(R.id.listMemo);
 		listView.setOnItemClickListener(this);
 		// メモリストアダプター作成
 		memoListAdapter = new MemoListAdapter(this, R.layout.row_memo, listMemo);
 		listView.setAdapter(memoListAdapter);
+		// コンテキストメニュー登録
+		registerForContextMenu(listView);
+	}
+
+	/**
+	 * onResume
+	 */
+	@Override
+	protected void onResume() {
+		super.onResume();
 		// メモデータ読み込み
 		readMemos();
 	}
@@ -39,12 +48,12 @@ public class MainActivity extends ActionBarActivity implements AdapterView.OnIte
 	 * メモデータ読み込み
 	 */
 	private void readMemos() {
-		for (int i = 0; i < 10; i++) {
-			Memo memo = new Memo();
-			memo.setMemo("めも" + (i + 1));
-			memo.setUpdated(new Date().getTime());
-			listMemo.add(memo);
-		}
+		DbAdapter dbAdapter = new DbAdapter(this);
+		dbAdapter.open();
+		List<Memo> list = dbAdapter.selectAllMemos();
+		listMemo.clear();
+		listMemo.addAll(list);
+		dbAdapter.close();
 		memoListAdapter.notifyDataSetChanged();
 	}
 
@@ -66,7 +75,9 @@ public class MainActivity extends ActionBarActivity implements AdapterView.OnIte
 		if (id == R.id.action_settings) {
 			return true;
 		} else if (id == R.id.action_new_memo) {
-			Toast.makeText(this, "新規メモ", Toast.LENGTH_LONG).show();
+			Intent intent = new Intent(this, EditActivity.class);
+			intent.putExtra(EditActivity.MODE, EditActivity.MODE_NEW);
+			startActivity(intent);
 			return true;
 		}
 
@@ -74,11 +85,51 @@ public class MainActivity extends ActionBarActivity implements AdapterView.OnIte
 	}
 
 	/**
+	 * コンテキストメニュー（長押しメニュー）作成
+	 */
+	@Override
+	public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+		if (v == listView) {
+			getMenuInflater().inflate(R.menu.main_context, menu);
+		}
+	}
+
+	/**
+	 * コンテキストメニュー（長押しメニュー）選択
+	 */
+	@Override
+	public boolean onContextItemSelected(MenuItem item) {
+		int id = item.getItemId();
+		if (id == R.id.action_delete) {
+			final AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+			Memo memo = listMemo.get(info.position);
+			deleteMemo(memo);
+			return true;
+		}
+		return super.onContextItemSelected(item);
+	}
+
+	/**
+	 * メモ削除
+	 */
+	private void deleteMemo(Memo memo) {
+		DbAdapter dbAdapter = new DbAdapter(this);
+		dbAdapter.open();
+		dbAdapter.deleteMemo(memo.getId());
+		dbAdapter.close();
+
+		readMemos();
+	}
+
+	/**
 	 * リストビューの行クリック
 	 */
 	@Override
-	public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+	public void onItemClick(AdapterView<?> arg0, View v, int position, long id) {
 		Memo memo = listMemo.get(position);
-		Toast.makeText(this, "行クリック:" + memo.getMemo(), Toast.LENGTH_LONG).show();
+		Intent intent = new Intent(this, EditActivity.class);
+		intent.putExtra(EditActivity.MODE, EditActivity.MODE_UPDATE);
+		intent.putExtra(EditActivity.MEMO_ID, memo.getId());
+		startActivity(intent);
 	}
 }
